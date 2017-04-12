@@ -276,7 +276,17 @@ define([
       }
 
       self.setClasses();
-      self.highlightFirstItem();
+      // when `{closeOnSelect: false}` option is used
+      // this method causes next weird behaviour: after user selects item
+      // whole list is being scrolled to the top. and to continue his walk
+      // on list he ought to scroll one more time to place
+      // where he used to be before. 
+      //
+      // origin of hack:
+      //   https://github.com/select2/select2/issues/1672#issuecomment-240411031
+      if (this.options.get('closeOnSelect')) {
+        self.highlightFirstItem();
+      }
     });
 
     container.on('unselect', function () {
@@ -285,7 +295,10 @@ define([
       }
 
       self.setClasses();
-      self.highlightFirstItem();
+      // same as above but for unselect
+      if (this.options.get('closeOnSelect')) {
+        self.highlightFirstItem();
+      }
     });
 
     container.on('open', function () {
@@ -298,10 +311,28 @@ define([
     });
 
     container.on('close', function () {
-      // When the dropdown is closed, aria-expended="false"
-      self.$results.attr('aria-expanded', 'false');
-      self.$results.attr('aria-hidden', 'true');
-      self.$results.removeAttr('aria-activedescendant');
+      var args = Array.prototype.slice.call(arguments, 0)[0] || {};
+
+      // even if `{closeOnSelect: false}` is used container with search results
+      // may be closed in 2 cases:
+      //  * when user clicks in "input field" to adjust search criteria
+      //  * when user removes selected item(s) in results selection container
+      //
+      // closing of search results container is split in 2 parts:
+      //  * unsetting some aria attributes
+      //  * hiding container itself
+      //
+      // here we have 1st part. and we preserve old behaviour in all cases
+      // except (a) our magic option is on ({closeOnSelect: false}) and
+      // (b) user clicks somewhere inside widget but definitely not on 
+      // search results contanier. we called join of these conditions
+      // "our special case"
+      if (!(!this.options.get('closeOnSelect') && !args.forceClose)) {
+        // When the dropdown is closed, aria-expended="false"
+        self.$results.attr('aria-expanded', 'false');
+        self.$results.attr('aria-hidden', 'true');
+        self.$results.removeAttr('aria-activedescendant');
+      }
     });
 
     container.on('results:toggle', function () {

@@ -83,7 +83,11 @@ define([
 
       self.$selection.focus();
 
-      self._detachCloseHandler(container);
+      // no need to deattach click handler in our special case
+      var args = Array.prototype.slice.call(arguments, 0)[0] || {};
+      if (!(!this.options.get('closeOnSelect') && !args.forceClose)) {
+        self._detachCloseHandler(container);
+      }
     });
 
     container.on('enable', function () {
@@ -116,6 +120,8 @@ define([
   BaseSelection.prototype._attachCloseHandler = function (container) {
     var self = this;
 
+    // IMO weird location for this important stuff but..
+    // this comment here is just to give more context to next comment
     $(document.body).on('mousedown.select2.' + container.id, function (e) {
       var $target = $(e.target);
 
@@ -132,7 +138,12 @@ define([
 
         var $element = $this.data('element');
 
-        $element.select2('close');
+        // we need to differenciate different types of close
+        // this one is kind of global: when user clicks somewhere in window
+        // but outside of select2 stuff we definitely need to close all stuff
+        // so we introduce additional param wich will turn into `forceClose`
+        // internal flag(/option)
+        $element.select2('close', true);
       });
     });
   };
