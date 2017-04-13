@@ -279,7 +279,12 @@ define([
     });
 
     this.on('close', function () {
-      self.$container.removeClass('select2-container--open');
+      // here we are hiding container with search results
+      // but we need to do that in all cases except our special case
+      var args = Array.prototype.slice.call(arguments, 0)[0] || {};
+      if (!(!this.options.get('closeOnSelect') && !args.forceClose)) {
+        self.$container.removeClass('select2-container--open');
+      }
     });
 
     this.on('enable', function () {
@@ -464,12 +469,14 @@ define([
     this.trigger('query', {});
   };
 
-  Select2.prototype.close = function () {
+  // here just passing further our `forceClose` flag with its value
+  // true | undefined -- depending on case
+  Select2.prototype.close = function (forceClose) {
     if (!this.isOpen()) {
       return;
     }
 
-    this.trigger('close', {});
+    this.trigger('close', {forceClose: forceClose});
   };
 
   Select2.prototype.isOpen = function () {

@@ -36,7 +36,14 @@ define([
     });
 
     container.on('close', function () {
-      self.$search.val('');
+      // need to preserve user's input when in next case
+      //  * when user switches from search results to input field with search
+      //        query
+      //  * when user switches from search results to selected results container
+      var args = Array.prototype.slice.call(arguments, 0)[0] || {};
+      if (!(!this.options.get('closeOnSelect') && !args.forceClose)) {
+        self.$search.val('');
+      }
       self.$search.removeAttr('aria-activedescendant');
       self.$search.trigger('focus');
     });

@@ -1035,7 +1035,17 @@ S2.define('select2/results',[
       }
 
       self.setClasses();
-      self.highlightFirstItem();
+      // when `{closeOnSelect: false}` option is used
+      // this method causes next weird behaviour: after user selects item
+      // whole list is being scrolled to the top. and to continue his walk
+      // on list he ought to scroll one more time to place
+      // where he used to be before. 
+      //
+      // origin of hack:
+      //   https://github.com/select2/select2/issues/1672#issuecomment-240411031
+      if (this.options.get('closeOnSelect')) {
+        self.highlightFirstItem();
+      }
     });
 
     container.on('unselect', function () {
@@ -1044,7 +1054,10 @@ S2.define('select2/results',[
       }
 
       self.setClasses();
-      self.highlightFirstItem();
+      // same as above but for unselect
+      if (this.options.get('closeOnSelect')) {
+        self.highlightFirstItem();
+      }
     });
 
     container.on('open', function () {
@@ -1057,10 +1070,28 @@ S2.define('select2/results',[
     });
 
     container.on('close', function () {
-      // When the dropdown is closed, aria-expended="false"
-      self.$results.attr('aria-expanded', 'false');
-      self.$results.attr('aria-hidden', 'true');
-      self.$results.removeAttr('aria-activedescendant');
+      var args = Array.prototype.slice.call(arguments, 0)[0] || {};
+
+      // even if `{closeOnSelect: false}` is used container with search results
+      // may be closed in 2 cases:
+      //  * when user clicks in "input field" to adjust search criteria
+      //  * when user removes selected item(s) in results selection container
+      //
+      // closing of search results container is split in 2 parts:
+      //  * unsetting some aria attributes
+      //  * hiding container itself
+      //
+      // here we have 1st part. and we preserve old behaviour in all cases
+      // except (a) our magic option is on ({closeOnSelect: false}) and
+      // (b) user clicks somewhere inside widget but definitely not on 
+      // search results contanier. we called join of these conditions
+      // "our special case"
+      if (!(!this.options.get('closeOnSelect') && !args.forceClose)) {
+        // When the dropdown is closed, aria-expended="false"
+        self.$results.attr('aria-expanded', 'false');
+        self.$results.attr('aria-hidden', 'true');
+        self.$results.removeAttr('aria-activedescendant');
+      }
     });
 
     container.on('results:toggle', function () {
@@ -1392,7 +1423,11 @@ S2.define('select2/selection/base',[
 
       self.$selection.focus();
 
-      self._detachCloseHandler(container);
+      // no need to deattach click handler in our special case
+      var args = Array.prototype.slice.call(arguments, 0)[0] || {};
+      if (!(!this.options.get('closeOnSelect') && !args.forceClose)) {
+        self._detachCloseHandler(container);
+      }
     });
 
     container.on('enable', function () {
@@ -1425,6 +1460,8 @@ S2.define('select2/selection/base',[
   BaseSelection.prototype._attachCloseHandler = function (container) {
     var self = this;
 
+    // IMO weird location for this important stuff but..
+    // this comment here is just to give more context to next comment
     $(document.body).on('mousedown.select2.' + container.id, function (e) {
       var $target = $(e.target);
 
@@ -1441,7 +1478,12 @@ S2.define('select2/selection/base',[
 
         var $element = $this.data('element');
 
-        $element.select2('close');
+        // we need to differenciate different types of close
+        // this one is kind of global: when user clicks somewhere in window
+        // but outside of select2 stuff we definitely need to close all stuff
+        // so we introduce additional param wich will turn into `forceClose`
+        // internal flag(/option)
+        $element.select2('close', true);
       });
     });
   };
@@ -1862,7 +1904,14 @@ S2.define('select2/selection/search',[
     });
 
     container.on('close', function () {
-      self.$search.val('');
+      // need to preserve user's input when in next case
+      //  * when user switches from search results to input field with search
+      //        query
+      //  * when user switches from search results to selected results container
+      var args = Array.prototype.slice.call(arguments, 0)[0] || {};
+      if (!(!this.options.get('closeOnSelect') && !args.forceClose)) {
+        self.$search.val('');
+      }
       self.$search.removeAttr('aria-activedescendant');
       self.$search.trigger('focus');
     });
@@ -5307,7 +5356,12 @@ S2.define('select2/core',[
     });
 
     this.on('close', function () {
-      self.$container.removeClass('select2-container--open');
+      // here we are hiding container with search results
+      // but we need to do that in all cases except our special case
+      var args = Array.prototype.slice.call(arguments, 0)[0] || {};
+      if (!(!this.options.get('closeOnSelect') && !args.forceClose)) {
+        self.$container.removeClass('select2-container--open');
+      }
     });
 
     this.on('enable', function () {
@@ -5492,12 +5546,14 @@ S2.define('select2/core',[
     this.trigger('query', {});
   };
 
-  Select2.prototype.close = function () {
+  // here just passing further our `forceClose` flag with its value
+  // true | undefined -- depending on case
+  Select2.prototype.close = function (forceClose) {
     if (!this.isOpen()) {
       return;
     }
 
-    this.trigger('close', {});
+    this.trigger('close', {forceClose: forceClose});
   };
 
   Select2.prototype.isOpen = function () {
